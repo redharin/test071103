@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<db:config name="Database_Aws" doc:name="Database Config" doc:id="657cb560-ab7d-4f5e-8cdc-3afd366364e6" >
+		<db:my-sql-connection host="database-1.czmlzaom5ihd.us-east-1.rds.amazonaws.com" port="3306" user="admin" password="admin1234" database="customer_tbl" />
+	</db:config>
+	<flow name="first-successfulFlow" doc:id="755f960c-9abb-4ac9-b991-63dee5d517fa" >
+		<http:listener doc:name="Listener" doc:id="df579c0b-25d8-48b4-b8ab-561014a23d49" config-ref="HTTP_Listener_config" path="/first-success">
+			<http:error-response >
+				<http:body ><![CDATA[#[payload]]]></http:body>
+			</http:error-response>
+		</http:listener>
+		<first-successful doc:name="First Successful" doc:id="ef0f2117-c92a-4100-a8f9-fb64ed908194" >
+			<route >
+				<logger level="INFO" doc:name="Logger" doc:id="352ad97a-5210-45e7-8ace-11db8e70eaff" message="Request going to First Route"/>
+				<db:select doc:name="Select" doc:id="ed07f0ce-9939-4b8c-b6e2-6b2df282907f" config-ref="Database_Config">
+					<db:sql><![CDATA[select * from emp_tbl]]></db:sql>
+				</db:select>
+			</route>
+			<route >
+				<logger level="INFO" doc:name="Logger" doc:id="1fe84e3e-e465-45cd-ba61-317c5c159caf" message="Request going to Second Route"/>
+				<db:select doc:name="Copy_of_Select" doc:id="a23b0904-d779-4a8a-bc3e-8d47e7465112" config-ref="Database_Config" >
+					<db:sql ><![CDATA[select * from emp_tbl]]></db:sql>
+				</db:select>
+			</route>
+			<route >
+				<logger level="INFO" doc:name="Logger" doc:id="b02dee97-7fb9-47c5-933f-82bb2448d169" message="Request going to Third Route"/>
+				<db:select doc:name="Copy_of_Select" doc:id="023ca2c0-0f88-4905-9cc2-ab1fd7703f6c" config-ref="Database_Aws" >
+					<db:sql ><![CDATA[select * from customer_tbl]]></db:sql>
+				</db:select>
+			</route>
+		</first-successful>
+		<ee:transform doc:name="Transform Message" doc:id="af8b4ce5-29eb-4ccd-aa85-8ac90eb60a71" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="b8cc5f2f-e695-49a2-94ba-ee0c1be01792" type="DB:CONNECTIVITY">
+				<ee:transform doc:name="Transform Message" doc:id="5f0d7974-cd07-4ec0-a828-d0886b3b1507" >
+					<ee:message >
+						<ee:set-payload ><![CDATA["Both Local and AWS database are down"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+</mule>

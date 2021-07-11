@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="until-successfulFlow" doc:id="05d21701-dd56-4af5-98d5-b03d4e929e1d" >
+		<http:listener doc:name="Listener" doc:id="3219be1b-b9a0-4194-ac4a-24392607d2e2" config-ref="HTTP_Listener_config" path="/until-success">
+			<http:error-response >
+				<http:body ><![CDATA[#[payload]]]></http:body>
+			</http:error-response>
+		</http:listener>
+		<until-successful maxRetries="5" doc:name="Until Successful" doc:id="7cec37c8-5e92-4f31-8969-4be63d94422b" millisBetweenRetries="10000">
+			<logger level="INFO" doc:name="Logger" doc:id="83251ff6-2e0e-4b2b-99a4-670cfa139521" message="Connecting to database to fecth customer details"/>
+			<db:select doc:name="Select" doc:id="eb8650ac-e8ef-4c10-b9b9-11b2c35a6e85" config-ref="Database_Config">
+				<db:sql><![CDATA[select * from emp_tbl]]></db:sql>
+			</db:select>
+		</until-successful>
+		<ee:transform doc:name="Transform Message" doc:id="91b1aa38-bcf7-4a13-8740-6773987583b3" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="94e881fd-2b24-46f5-bd6e-343c55cb0e08" type="DB:CONNECTIVITY">
+				<ee:transform doc:name="Transform Message" doc:id="ab16600a-8e2b-4e49-b3f9-0ce9414c2ba2" >
+					<ee:message >
+						<ee:set-payload ><![CDATA["DB connectivity issue not resoved even after multiple attempts, please try again later."]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="ee7e349e-7f4e-4754-afb9-fd90e38b8aa4" type="MULE:RETRY_EXHAUSTED">
+				<ee:transform doc:name="Transform Message" doc:id="09d675f0-8c9f-425b-ae72-57c635ba4f90" >
+					<ee:message >
+						<ee:set-payload ><![CDATA["Database is down tried multiple attempts but failing... please try after some time"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+</mule>

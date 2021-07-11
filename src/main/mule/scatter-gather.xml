@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:jms="http://www.mulesoft.org/schema/mule/jms"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="c273352a-19f1-4d5a-b663-b77a271df637" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="2fb02968-4111-419a-9734-cef0ee1ccd53" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="root" database="emp_db" >
+			<db:connection-properties >
+				<db:connection-property key="useSSL" value="false" />
+			</db:connection-properties>
+		</db:my-sql-connection>
+	</db:config>
+	<file:config name="File_Config" doc:name="File Config" doc:id="23f216f6-4339-4d5c-b32a-9d51e18ff03e" />
+	<validation:config name="Validation_Config" doc:name="Validation Config" doc:id="162541d2-8044-4553-a2c6-21960c95cc00" />
+	<flow name="scatter-gatherFlow" doc:id="0b58645e-15e3-4acd-93ea-5b25b656757a" >
+		<http:listener doc:name="Listener" doc:id="134ee6f5-1373-476b-90be-a43feba29f46" config-ref="HTTP_Listener_config" path="/scatter">
+			<http:error-response >
+				<http:body ><![CDATA[#[payload]]]></http:body>
+			</http:error-response>
+		</http:listener>
+		<logger level="INFO" doc:name="Logger" doc:id="f7e603ce-f1ba-4c4c-9500-49a3fa1d22b1" message="Request Received"/>
+		<validation:is-email doc:id="cc1ac19f-491d-4081-a05c-7704b89caf0d" config-ref="Validation_Config" email="#[payload.email]" message="Email is not correct, check and send the request"/>
+		<scatter-gather doc:name="Scatter-Gather" doc:id="2df4d1e1-c2b7-4f87-acec-8fd7c8ea026f" >
+			<route >
+				<logger level="INFO" doc:name="Logger" doc:id="c1197762-4e63-4c82-b491-405097902dae" message="First flow from scatter-gather"/>
+				<try doc:name="Try" doc:id="725c3d06-70dc-4a65-b0d1-59d703839725" >
+					<db:insert doc:name="Insert" doc:id="f80f6562-6b65-49b5-b78f-da5149482423" config-ref="Database_Config">
+					<db:sql><![CDATA[insert into emp_tbl (name,email,address,telephone) values (:name,:email,:address,:telephone)]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+	name : payload.name,
+	email : payload.email,
+	address : payload.address,
+	telephone : payload.telephone
+}]]]></db:input-parameters>
+				</db:insert>
+				</try>
+				<ee:transform doc:name="Transform Message" doc:id="87be3421-955e-4bcc-96ab-7eee2c434958" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+"customer created Success"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</route>
+			<route >
+				<logger level="INFO" doc:name="Logger" doc:id="f3e4c86a-ecb7-42ce-85be-96a2587f55ca" message="Second flow from scatter-gather"/>
+				<ee:transform doc:name="Transform Message" doc:id="9a4799bc-b2f9-4968-a405-8d0aaff339de" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/csv
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<try doc:name="Try" doc:id="6cb199c5-ee37-47a5-add4-2a974df9a272" >
+					<file:write doc:name="Write" doc:id="69e1a299-6795-4a92-81a6-212ed93da902" config-ref="File_Config" path="C:\Users\admin\Desktop\Mule Ex\batchtest\scatter-write.csv" />
+				</try>
+				<ee:transform doc:name="Transform Message" doc:id="380d6523-a340-458e-b73b-8453e16fa47d" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+"File created success"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</route>
+		</scatter-gather>
+		<ee:transform doc:name="Transform Message" doc:id="7c078e4e-501b-4579-80bb-488451f58ddd" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	FirstRouteOutput : payload."0".payload,
+	SecondRoutOuptut : payload."1".payload
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="a6677cef-322e-4a45-b2a8-f50183d3b72e" type="ANY">
+				<ee:transform doc:name="Transform Message" doc:id="8867f682-c229-4ccd-984e-09962fbd9f86" >
+					<ee:message >
+						<ee:set-payload ><![CDATA["Error with one flow caused the scatter-gather to fail"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+</mule>
